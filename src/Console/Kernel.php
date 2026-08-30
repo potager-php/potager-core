@@ -7,6 +7,7 @@ use Potager\Console\Commands\MakeCommandCommand;
 use Potager\Console\Commands\MakeControllerCommand;
 use Potager\Console\Commands\MakeMiddlewareCommand;
 use Potager\Console\Commands\MakeModelCommand;
+use Potager\Console\Commands\MakePipeCommand;
 use Potager\Console\Commands\RouteListCommand;
 use Potager\Console\Exceptions\CommandNotFoundException;
 use Potager\Console\IO\InputDefinition;
@@ -64,6 +65,7 @@ class Kernel
             MakeControllerCommand::class,
             MakeMiddlewareCommand::class,
             MakeModelCommand::class,
+            MakePipeCommand::class,
             RouteListCommand::class,
         ];
 

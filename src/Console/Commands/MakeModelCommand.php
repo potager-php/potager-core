@@ -2,60 +2,21 @@
 
 namespace Potager\Console\Commands;
 
-use Potager\App;
-use Potager\Console\Command;
-use Potager\Console\IO\InputArgument;
+use Potager\Console\GeneratorCommand;
 
-class MakeModelCommand extends Command
+class MakeModelCommand extends GeneratorCommand
 {
     protected string $name = 'make:model';
-
     protected string $description = 'Create a new Limpid model class';
+    protected string $type = 'Model';
 
-    protected function getInputDefinition(): array
+    protected function getStub(): string
     {
-        return [
-            InputArgument::make('name')->description('The name of the model class to create (e.g. "User")'),
-        ];
+        return __DIR__ . '/../Stubs/model.stub';
     }
 
-    public function handle(): int
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
-        $name = $this->input->argument('name');
-
-        if (!$name) {
-            $this->output->error('  Missing argument: name');
-            return 1;
-        }
-
-        $targetPath = App::getInstance()->getBasePath() . '/app/Models/' . $name . '.php';
-
-        if (file_exists($targetPath)) {
-            $this->output->error("  Model [{$name}] already exists.");
-            return 1;
-        }
-
-        $stub = file_get_contents(__DIR__ . '/../Stubs/model.stub');
-        $content = str_replace('{{name}}', $name, $stub);
-
-        $this->ensureDirectory(dirname($targetPath));
-        file_put_contents($targetPath, $content);
-
-        $this->output->success("  Model [{$name}] created successfully.");
-        $this->output->line('  → ' . $this->relativePath($targetPath));
-        return 0;
-    }
-
-    private function ensureDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
-    }
-
-    private function relativePath(string $absolute): string
-    {
-        $base = App::getInstance()->getBasePath();
-        return ltrim(str_replace($base, '', $absolute), '/');
+        return $rootNamespace . '\Models';
     }
 }

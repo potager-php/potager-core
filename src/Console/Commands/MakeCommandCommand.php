@@ -2,71 +2,96 @@
 
 namespace Potager\Console\Commands;
 
-use Potager\App;
-use Potager\Console\Command;
+use Potager\Console\GeneratorCommand;
 use Potager\Console\IO\InputArgument;
+use Potager\Console\IO\InputOption;
 
-class MakeCommandCommand extends Command
+class MakeCommandCommand extends GeneratorCommand
 {
     protected string $name = 'make:command';
+    protected string $description = 'Create a new console command class';
+    protected string $type = 'Command';
 
-    protected string $description = 'Create a new command class';
+    protected string $helpText = "The make:command command creates a new console command class in app/Commands.\n\nPass the --generator flag to create a generator command that scaffolds files from stubs.\n\nExamples:\n  php farmer make:command SendEmailCommand\n  php farmer make:command MakeRepositoryCommand --generator";
 
-    protected function getInputDefinition(): array
+    protected function getOptions(): array
     {
         return [
-            InputArgument::make('name')->description('The name of the command class to create (e.g. "GreetUserCommand")'),
+            InputOption::make('generator')
+                ->shortcut('g')
+                ->flag()
+                ->description('Generate a GeneratorCommand subclass for scaffolding files from stubs'),
         ];
     }
 
-    public function handle(): int
+    protected function getStub(): string
     {
-        $name = $this->input->argument('name');
-
-        if (!$name) {
-            $this->output->error('  Missing argument: name');
-            return 1;
+        if ($this->input->option('generator')) {
+            return __DIR__ . '/../Stubs/command.generator.stub';
         }
 
-        // Append "Command" suffix if absent
+        return __DIR__ . '/../Stubs/command.stub';
+    }
+
+    protected function getDefaultNamespace(string $rootNamespace): string
+    {
+        return $rootNamespace . '\Commands';
+    }
+
+    protected function qualifyClass(string $name): string
+    {
+        $name = parent::qualifyClass($name);
+
         if (!str_ends_with($name, 'Command')) {
             $name .= 'Command';
         }
 
-        $targetPath = App::getInstance()->getBasePath() . '/app/Commands/' . $name . '.php';
+        return $name;
+    }
 
-        if (file_exists($targetPath)) {
-            $this->output->error("  Command [{$name}] already exists.");
-            return 1;
+    protected function replacePlaceholders(string $stub, string $name): string
+    {
+        $className = $this->getClassName($name);
+        $signature = $this->deriveSignature($className);
+        $type = $this->deriveType($className);
+        $pluralType = $this->derivePlural($type);
+
+        return str_replace(
+            ['{{signature}}', '{{ signature }}', '{{type}}', '{{ type }}', '{{pluralType}}', '{{ pluralType }}'],
+            [$signature, $signature, $type, $type, $pluralType, $pluralType],
+            $stub
+        );
+    }
+
+    private function deriveType(string $className): string
+    {
+        $type = preg_replace('/Command$/', '', $className);
+        $type = preg_replace('/^Make/', '', $type);
+
+        return $type ?: 'Class';
+    }
+
+    private function derivePlural(string $type): string
+    {
+        if (str_ends_with($type, 'y')) {
+            return substr($type, 0, -1) . 'ies';
         }
 
-        $signature = $this->deriveSignature($name);
-
-        $stub = file_get_contents(__DIR__ . '/../Stubs/command.stub');
-        $content = str_replace(['{{name}}', '{{signature}}'], [$name, $signature], $stub);
-
-        $this->ensureDirectory(dirname($targetPath));
-        file_put_contents($targetPath, $content);
-
-        $this->output->success("  Command [{$name}] created successfully.");
-        $this->output->line('  → ' . $this->relativePath($targetPath));
-        return 0;
+        return $type . 's';
     }
 
     /**
      * Derive a default command signature from a PascalCase class name.
      *
      * Examples:
-     *   GreetUserCommand → greet:user
-     *   SendEmailCommand → send:email
-     *   MigrateCommand   → migrate
+     *   GreetUserCommand    → greet:user
+     *   MakeServiceCommand  → make:service
+     *   SendEmailCommand    → send:email
+     *   MigrateCommand      → migrate
      */
     private function deriveSignature(string $className): string
     {
-        // Remove trailing "Command" suffix
         $name = preg_replace('/Command$/', '', $className);
-
-        // Split PascalCase into words
         $words = preg_split('/(?=[A-Z])/', $name, -1, PREG_SPLIT_NO_EMPTY);
         $words = array_map('strtolower', $words);
 
@@ -74,21 +99,7 @@ class MakeCommandCommand extends Command
             return implode('', $words);
         }
 
-        // First word becomes the namespace, the rest become the sub-command
         $namespace = array_shift($words);
         return $namespace . ':' . implode('-', $words);
-    }
-
-    private function ensureDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
-    }
-
-    private function relativePath(string $absolute): string
-    {
-        $base = App::getInstance()->getBasePath();
-        return ltrim(str_replace($base, '', $absolute), '/');
     }
 }

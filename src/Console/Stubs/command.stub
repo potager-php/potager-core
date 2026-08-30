@@ -1,16 +1,20 @@
 <?php
 
-namespace App\Commands;
+namespace {{namespace}};
 
 use Potager\Console\Command;
+use Potager\Console\IO\Output;
+use Potager\Contracts\Console\InputInterface;
 
-class {{name}} extends Command
+class {{class}} extends Command
 {
     protected string $name = '{{signature}}';
     protected string $description = '';
 
-    public function handle(): int
+    public function handle(InputInterface $input, Output $output): int
     {
+        $output->success('  Command executed successfully!');
+
         return 0;
     }
 }

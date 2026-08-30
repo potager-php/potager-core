@@ -39,17 +39,47 @@ abstract class Command
     /** @var array<class-string<\Potager\Contracts\Console\PipeInterface>> Middleware pipes specific to this command. */
     protected array $pipes = [];
 
+    /** @var array<\Potager\Console\IO\InputArgument> Arguments declared for this command. */
+    protected array $arguments = [];
+
+    /** @var array<\Potager\Console\IO\InputOption> Options declared for this command. */
+    protected array $options = [];
+
+    /**
+     * Returns additional arguments declared for this command.
+     *
+     * @return array<\Potager\Console\IO\InputArgument>
+     */
+    protected function getArguments(): array
+    {
+        return $this->arguments;
+    }
+
+    /**
+     * Returns additional options declared for this command.
+     *
+     * @return array<\Potager\Console\IO\InputOption>
+     */
+    protected function getOptions(): array
+    {
+        return $this->options;
+    }
+
     /**
      * Returns the raw input definition for this command.
      *
      * Override in subclasses to declare {@see \Potager\Console\IO\InputArgument}
-     * and {@see \Potager\Console\IO\InputOption} instances.
+     * and {@see \Potager\Console\IO\InputOption} instances, or implement
+     * {@see getArguments()} and {@see getOptions()}.
      *
      * @return array<\Potager\Console\IO\InputArgument|\Potager\Console\IO\InputOption>
      */
     protected function getInputDefinition(): array
     {
-        return [];
+        return [
+            ...$this->getArguments(),
+            ...$this->getOptions(),
+        ];
     }
 
     /**

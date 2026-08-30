@@ -1,0 +1,22 @@
+<?php
+
+namespace {{namespace}};
+
+use Potager\Console\Command;
+use Potager\Console\IO\Output;
+use Potager\Contracts\Console\InputInterface;
+use Potager\Contracts\Console\PipeInterface;
+
+class {{class}} implements PipeInterface
+{
+    public function handle(InputInterface $input, Output $output, Command $command, callable $next): int
+    {
+        // Pre-execution actions...
+
+        $exitCode = $next($input, $output);
+
+        // Post-execution actions...
+
+        return $exitCode;
+    }
+}

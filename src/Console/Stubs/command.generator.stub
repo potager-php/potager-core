@@ -1,0 +1,33 @@
+<?php
+
+namespace {{namespace}};
+
+use Potager\Console\GeneratorCommand;
+
+class {{class}} extends GeneratorCommand
+{
+    protected string $name = '{{signature}}';
+    protected string $description = 'Create a new {{type}} class';
+    protected string $type = '{{type}}';
+
+    /**
+     * Get the stub file for the generator.
+     *
+     * @return string
+     */
+    protected function getStub(): string
+    {
+        return __DIR__ . '/Stubs/custom.stub';
+    }
+
+    /**
+     * Get the default namespace for the class.
+     *
+     * @param string $rootNamespace
+     * @return string
+     */
+    protected function getDefaultNamespace(string $rootNamespace): string
+    {
+        return $rootNamespace . '\{{pluralType}}';
+    }
+}

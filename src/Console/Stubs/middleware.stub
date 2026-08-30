@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Middleware;
+namespace {{namespace}};
 
 use Potager\Contracts\MiddlewareInterface;
 use Potager\Router\HttpContext;
 
-class {{name}} implements MiddlewareInterface
+class {{class}} implements MiddlewareInterface
 {
     public function handle(HttpContext $ctx, callable $next): void
     {
