@@ -21,6 +21,12 @@ abstract class Command
     /** @var string A short description of the command shown in the command list. */
     protected string $description = '';
 
+    /** @var string Detailed help text or examples shown in the command help page. */
+    protected string $helpText = '';
+
+    /** @var array<string> Alternative names (aliases) for this command. */
+    protected array $aliases = [];
+
     /** @var InputInterface The resolved input instance bound to this command. */
     protected InputInterface $input;
 
@@ -129,73 +135,234 @@ abstract class Command
     }
 
     /**
-     * Affiche l'aide générée automatiquement à partir de la définition de la commande.
+     * Sets the short description of the command.
+     *
+     * @param string $description
+     * @return static
+     */
+    public function setDescription(string $description): static
+    {
+        $this->description = $description;
+        return $this;
+    }
+
+    /**
+     * Returns detailed help text or examples for the command.
+     *
+     * @return string
+     */
+    public function getHelpText(): string
+    {
+        return $this->helpText;
+    }
+
+    /**
+     * Sets detailed help text or examples for the command.
+     *
+     * @param string $helpText
+     * @return static
+     */
+    public function setHelpText(string $helpText): static
+    {
+        $this->helpText = $helpText;
+        return $this;
+    }
+
+    /**
+     * Fluent alias to set detailed help text.
+     *
+     * @param string $helpText
+     * @return static
+     */
+    public function helpText(string $helpText): static
+    {
+        return $this->setHelpText($helpText);
+    }
+
+    /**
+     * Returns all command aliases.
+     *
+     * @return array<string>
+     */
+    public function getAliases(): array
+    {
+        return $this->aliases;
+    }
+
+    /**
+     * Sets command aliases.
+     *
+     * @param array<string> $aliases
+     * @return static
+     */
+    public function setAliases(array $aliases): static
+    {
+        $this->aliases = $aliases;
+        return $this;
+    }
+
+    /**
+     * Fluent alias to assign command aliases.
+     *
+     * @param array<string> $aliases
+     * @return static
+     */
+    public function aliases(array $aliases): static
+    {
+        return $this->setAliases($aliases);
+    }
+
+    /**
+     * Renders a comprehensive, beautifully aligned help page for this command.
      *
      * @param InputDefinition|null $definition Optional definition to use for rendering help.
      */
     public function help(?InputDefinition $definition = null): void
     {
         $definition ??= $this->definition ?? $this->getResolvedInputDefinition();
+        $arguments = $definition->getArguments();
+        $options = $definition->getOptions();
+
+        $this->output->newLine();
 
         // 1. Description
-        $this->output->newLine();
-        $this->output->line($this->output->format('Description:', 'yellow'));
-        $this->output->line('  ' . $this->getDescription());
-        $this->output->newLine();
+        $description = $this->getDescription();
+        if (!empty($description)) {
+            $this->output->line($this->output->format('Description:', 'yellow'));
+            $this->output->line('  ' . $description);
+            $this->output->newLine();
+        }
 
-        // 2. Usage
+        // 2. Usage (Standard : commande [options] [--] <arguments>)
         $this->output->line($this->output->format('Usage:', 'yellow'));
-        $this->output->line('  ' . $this->getName() . ' [options] [--] [<arguments>]');
+
+        $usages = [$this->getName(), ...$this->getAliases()];
+        foreach ($usages as $commandName) {
+            $synopsis = '  php farmer ' . $commandName;
+
+            // 1. Options
+            if (!empty($options)) {
+                $synopsis .= ' [options]';
+            }
+
+            // 2. Arguments
+            if (!empty($arguments)) {
+                $synopsis .= ' [--]';
+                foreach ($arguments as $arg) {
+                    $name = $arg->getName();
+
+                    if ($arg->isMultiple()) {
+                        if ($arg->isRequired()) {
+                            $synopsis .= ' <' . $name . '>...';
+                        } else {
+                            $synopsis .= ' [<' . $name . '>...]';
+                        }
+                    } else {
+                        if ($arg->isRequired()) {
+                            $synopsis .= ' <' . $name . '>';
+                        } else {
+                            $synopsis .= ' [<' . $name . '>]';
+                        }
+                    }
+                }
+            }
+
+            $this->output->line($synopsis);
+        }
         $this->output->newLine();
 
-        // 3. Arguments
-        $arguments = $definition->getArguments();
+        // Pre-compute arguments formatting
+        $maxArgLen = 0;
+        $argRows = [];
+        foreach ($arguments as $arg) {
+            $name = $arg->getName();
+            if ($arg->isMultiple()) {
+                $name .= '...';
+            }
+
+            $maxArgLen = max($maxArgLen, strlen($name));
+            $argRows[] = [
+                'name' => $name,
+                'description' => $arg->getDescription(),
+                'default' => $arg->getDefault(),
+            ];
+        }
+
+        // Pre-compute options formatting
+        $maxOptLen = 0;
+        $optRows = [];
+        foreach ($options as $opt) {
+            $shortcut = $opt->getShortcut() ? '-' . $opt->getShortcut() . ', ' : '    ';
+            $name = '--' . $opt->getName();
+
+            if ($opt->acceptsValue()) {
+                $valLabel = strtoupper($opt->getName());
+                if ($opt->isMultiple()) {
+                    $name .= '=' . $valLabel . '...';
+                } elseif ($opt->isValueRequired()) {
+                    $name .= '=' . $valLabel;
+                } else {
+                    $name .= '[=' . $valLabel . ']';
+                }
+            }
+
+            $synopsis = $shortcut . $name;
+            $maxOptLen = max($maxOptLen, strlen($synopsis));
+
+            $optRows[] = [
+                'synopsis' => $synopsis,
+                'description' => $opt->getDescription(),
+                'default' => $opt->getDefault(),
+                'isFlag' => $opt->isFlag(),
+            ];
+        }
+
+        // Unified column padding for both Arguments and Options
+        $padding = max($maxArgLen, $maxOptLen, 22) + 4;
+
+        // 3. Arguments Section
         if (!empty($arguments)) {
             $this->output->line($this->output->format('Arguments:', 'yellow'));
-            foreach ($arguments as $arg) {
-                $name = $arg->getName();
 
-                // Formatage du nom (ex: "nom (tableau)" ou "nom")
-                $displayName = $arg->isMultiple() ? $name . '...' : $name;
+            foreach ($argRows as $row) {
+                $default = ($row['default'] !== null && $row['default'] !== false && $row['default'] !== [])
+                    ? ' [default: ' . json_encode($row['default']) . ']'
+                    : '';
 
-                // Affichage du défaut si pertinent
-                $default = $arg->getDefault() !== null ? ' [default: ' . json_encode($arg->getDefault()) . ']' : '';
-
-                // On utilise str_pad pour aligner parfaitement les descriptions à 25 caractères
                 $this->output->line(
-                    '  ' . $this->output->format(str_pad($displayName, 25), 'green') .
-                        $arg->getDescription() . $this->output->format($default, 'yellow')
+                    '  ' . $this->output->format(str_pad($row['name'], $padding), 'green') .
+                    $row['description'] .
+                    $this->output->format($default, 'yellow')
                 );
             }
             $this->output->newLine();
         }
 
-        // 4. Options
-        $options = $definition->getOptions();
+        // 4. Options Section
         if (!empty($options)) {
             $this->output->line($this->output->format('Options:', 'yellow'));
-            foreach ($options as $opt) {
-                // Gestion du raccourci (ex: "-h, " ou "    ")
-                $shortcut = $opt->getShortcut() ? '-' . $opt->getShortcut() . ', ' : '    ';
 
-                // Gestion du nom long et de la valeur (ex: "--env=ENV")
-                $name = '--' . $opt->getName();
-                if ($opt->acceptsValue()) {
-                    $name .= '=' . strtoupper($opt->getName());
-                }
+            foreach ($optRows as $row) {
+                $default = (!$row['isFlag'] && $row['default'] !== null && $row['default'] !== false && $row['default'] !== [])
+                    ? ' [default: ' . json_encode($row['default']) . ']'
+                    : '';
 
-                $synopsis = $shortcut . $name;
-
-                // On n'affiche pas les défauts vides, null ou les booléens (pour les flags)
-                $rawDefault = $opt->getDefault();
-                $default = ($rawDefault !== null && $rawDefault !== false && $rawDefault !== [])
-                    ? ' [default: ' . json_encode($rawDefault) . ']' : '';
-
-                // Alignement parfait
                 $this->output->line(
-                    '  ' . $this->output->format(str_pad($synopsis, 25), 'green') .
-                        $opt->getDescription() . $this->output->format($default, 'yellow')
+                    '  ' . $this->output->format(str_pad($row['synopsis'], $padding), 'green') .
+                    $row['description'] .
+                    $this->output->format($default, 'yellow')
                 );
+            }
+            $this->output->newLine();
+        }
+
+        // 5. Extended Help Text (Optional)
+        $helpText = $this->getHelpText();
+        if (!empty($helpText)) {
+            $this->output->line($this->output->format('Help:', 'yellow'));
+            $lines = explode("\n", trim($helpText));
+            foreach ($lines as $line) {
+                $this->output->line('  ' . $line);
             }
             $this->output->newLine();
         }

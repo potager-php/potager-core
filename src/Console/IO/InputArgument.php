@@ -68,6 +68,11 @@ class InputArgument
     public function default(mixed $default): self
     {
         $this->default = $default;
+
+        if ($default !== null) {
+            $this->required = false;
+        }
+
         return $this;
     }
 

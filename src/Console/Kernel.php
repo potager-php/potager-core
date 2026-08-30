@@ -114,11 +114,17 @@ class Kernel
      */
     public function resolve(string $name): Command
     {
-        if (!$this->has($name)) {
-            throw new CommandNotFoundException($name);
+        if (isset($this->commands[$name])) {
+            return $this->commands[$name];
         }
 
-        return $this->commands[$name];
+        foreach ($this->commands as $command) {
+            if (in_array($name, $command->getAliases(), true)) {
+                return $command;
+            }
+        }
+
+        throw new CommandNotFoundException($name);
     }
 
     /**
@@ -129,7 +135,17 @@ class Kernel
      */
     public function has(string $name): bool
     {
-        return isset($this->commands[$name]);
+        if (isset($this->commands[$name])) {
+            return true;
+        }
+
+        foreach ($this->commands as $command) {
+            if (in_array($name, $command->getAliases(), true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
