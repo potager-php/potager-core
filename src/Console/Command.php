@@ -27,6 +27,12 @@ abstract class Command
     /** @var Output The output instance bound to this command. */
     protected Output $output;
 
+    /** @var InputDefinition|null The full input definition (including application options) bound to this command. */
+    protected ?InputDefinition $definition = null;
+
+    /** @var array<class-string<\Potager\Contracts\Console\PipeInterface>> Middleware pipes specific to this command. */
+    protected array $pipes = [];
+
     /**
      * Returns the raw input definition for this command.
      *
@@ -48,6 +54,26 @@ abstract class Command
     public function getResolvedInputDefinition(): InputDefinition
     {
         return new InputDefinition($this->getInputDefinition());
+    }
+
+    /**
+     * Sets the bound input definition for this command.
+     *
+     * @param InputDefinition $definition
+     */
+    public function setDefinition(InputDefinition $definition): void
+    {
+        $this->definition = $definition;
+    }
+
+    /**
+     * Returns the bound input definition for this command, or null if not yet bound.
+     *
+     * @return InputDefinition|null
+     */
+    public function getDefinition(): ?InputDefinition
+    {
+        return $this->definition;
     }
 
     /**
@@ -104,10 +130,12 @@ abstract class Command
 
     /**
      * Affiche l'aide générée automatiquement à partir de la définition de la commande.
+     *
+     * @param InputDefinition|null $definition Optional definition to use for rendering help.
      */
-    public function help(): void
+    public function help(?InputDefinition $definition = null): void
     {
-        $definition = $this->getResolvedInputDefinition();
+        $definition ??= $this->definition ?? $this->getResolvedInputDefinition();
 
         // 1. Description
         $this->output->newLine();
@@ -171,5 +199,81 @@ abstract class Command
             }
             $this->output->newLine();
         }
+    }
+
+    /**
+     * Returns all middleware pipes registered for this command.
+     *
+     * @return array<class-string<\Potager\Contracts\Console\PipeInterface>>
+     */
+    public function getPipes(): array
+    {
+        return $this->pipes;
+    }
+
+    /**
+     * Attaches one or more middleware pipes to this command's execution pipeline.
+     *
+     * Accepts a single class-string, multiple class-strings, or an array of class-strings.
+     *
+     * @param class-string<\Potager\Contracts\Console\PipeInterface>|array<class-string<\Potager\Contracts\Console\PipeInterface>> ...$pipes
+     * @return static
+     */
+    public function through(string|array ...$pipes): static
+    {
+        foreach ($pipes as $item) {
+            if (is_array($item)) {
+                $this->pipes = array_merge($this->pipes, $item);
+            } else {
+                $this->pipes[] = $item;
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Appends a middleware pipe class to this command's execution pipeline.
+     *
+     * @param class-string<\Potager\Contracts\Console\PipeInterface> $pipeClass
+     * @return static
+     */
+    public function pushPipe(string $pipeClass): static
+    {
+        return $this->through($pipeClass);
+    }
+
+    /**
+     * Fluent alias for pushPipe.
+     *
+     * @param class-string<\Potager\Contracts\Console\PipeInterface> $pipeClass
+     * @return static
+     */
+    public function pipe(string $pipeClass): static
+    {
+        return $this->through($pipeClass);
+    }
+
+    /**
+     * Sets all middleware pipes for this command.
+     *
+     * @param array<class-string<\Potager\Contracts\Console\PipeInterface>> $pipes
+     * @return static
+     */
+    public function setPipes(array $pipes): static
+    {
+        $this->pipes = $pipes;
+        return $this;
+    }
+
+    /**
+     * Fluent alias to assign multiple middleware pipes.
+     *
+     * @param array<class-string<\Potager\Contracts\Console\PipeInterface>> $pipes
+     * @return static
+     */
+    public function withPipes(array $pipes): static
+    {
+        return $this->through($pipes);
     }
 }

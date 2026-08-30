@@ -126,19 +126,45 @@ class InputDefinition
      *
      * @param InputOption $option The option to register.
      *
-     * @throws \LogicException If an option with the same name already exists.
+     * @throws \LogicException If an option with the same name or shortcut already exists.
      */
     public function addOption(InputOption $option): void
     {
-        if (isset($this->options[$option->getName()])) {
-            throw new \LogicException(sprintf('An option with name "%s" already exists.', $option->getName()));
+        $name = $option->getName();
+        $shortcut = $option->getShortcut();
+
+        if (isset($this->options[$name])) {
+            throw new \LogicException(sprintf('An option with name "%s" already exists.', $name));
         }
 
-        $this->options[$option->getName()] = $option;
-
-        if ($shortcut = $option->getShortcut()) {
-            $this->shortcuts[$shortcut] = $option->getName();
+        if ($shortcut !== null && isset($this->shortcuts[$shortcut])) {
+            throw new \LogicException(sprintf('An option with shortcut "%s" already exists.', $shortcut));
         }
+
+        $this->options[$name] = $option;
+
+        if ($shortcut !== null) {
+            $this->shortcuts[$shortcut] = $name;
+        }
+    }
+
+    /**
+     * Merges another definition into this one.
+     *
+     * @param InputDefinition $definition The definition to merge.
+     * @return self
+     */
+    public function merge(InputDefinition $definition): self
+    {
+        foreach ($definition->getArguments() as $argument) {
+            $this->addArgument($argument);
+        }
+
+        foreach ($definition->getOptions() as $option) {
+            $this->addOption($option);
+        }
+
+        return $this;
     }
 
     /**

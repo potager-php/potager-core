@@ -9,18 +9,17 @@ use Potager\Console\Commands\MakeMiddlewareCommand;
 use Potager\Console\Commands\MakeModelCommand;
 use Potager\Console\Commands\RouteListCommand;
 use Potager\Console\Exceptions\CommandNotFoundException;
+use Potager\Console\IO\InputDefinition;
 use Potager\Console\IO\Output;
-use Potager\Console\Pipes\HelpPipe;
-use Potager\Console\Pipes\VersionPipe;
 use Potager\Container\Container;
 use Potager\Contracts\Console\InputInterface;
 
 /**
  * Manages console command registration, resolution, and execution.
  *
- * Handles the full lifecycle of console commands: bootstrapping built-in commands,
- * registering custom commands, resolving by name, and executing with input/output.
- * Supports middleware-style pipes for cross-cutting concerns (help, version).
+ * Coordinates the full console lifecycle: bootstrapping built-in commands,
+ * registering custom commands, resolving by name, delegating global options,
+ * and dispatching execution through the middleware pipeline.
  */
 class Kernel
 {
@@ -30,18 +29,20 @@ class Kernel
     /** @var array<string, Command> All registered commands, keyed by command name. */
     private array $commands = [];
 
-    /** @var array<class-string> Pipe classes to execute in reverse order before the command. */
-    private array $pipes = [
-        HelpPipe::class,
-        VersionPipe::class,
-    ];
+    /** @var array<class-string> Middleware pipe classes to execute before the command handler. */
+    private array $pipes = [];
+
+    /** @var GlobalOptionsManager Manager for global options definition, protection, and execution. */
+    private GlobalOptionsManager $globalOptions;
 
     /**
-     * @param Container $container The application container.
+     * @param Container                 $container     The application container.
+     * @param GlobalOptionsManager|null $globalOptions The global options manager instance.
      */
-    public function __construct(Container $container)
+    public function __construct(Container $container, ?GlobalOptionsManager $globalOptions = null)
     {
         $this->container = $container;
+        $this->globalOptions = $globalOptions ?? new GlobalOptionsManager();
     }
 
     /**
@@ -142,11 +143,96 @@ class Kernel
     }
 
     /**
-     * Handles the full execution pipeline for a console request.
+     * Assigns one or more global middleware pipes to the execution pipeline.
      *
-     * Constructs a middleware pipeline from registered pipes, then executes
-     * the command within that pipeline. Handles common errors like command
-     * not found or fatal exceptions.
+     * Accepts a single class-string, multiple class-strings, or an array of class-strings.
+     *
+     * @param class-string<\Potager\Contracts\Console\PipeInterface>|array<class-string<\Potager\Contracts\Console\PipeInterface>> ...$pipes
+     * @return self
+     */
+    public function through(string|array ...$pipes): self
+    {
+        foreach ($pipes as $item) {
+            if (is_array($item)) {
+                $this->pipes = array_merge($this->pipes, $item);
+            } else {
+                $this->pipes[] = $item;
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Appends a middleware pipe class to the pipeline.
+     *
+     * @param class-string $pipeClass
+     * @return self
+     */
+    public function pushPipe(string $pipeClass): self
+    {
+        return $this->through($pipeClass);
+    }
+
+    /**
+     * Sets all middleware pipes in the pipeline.
+     *
+     * @param array<class-string> $pipes
+     * @return self
+     */
+    public function setPipes(array $pipes): self
+    {
+        $this->pipes = $pipes;
+        return $this;
+    }
+
+    /**
+     * Returns all registered middleware pipes.
+     *
+     * @return array<class-string>
+     */
+    public function getPipes(): array
+    {
+        return $this->pipes;
+    }
+
+    /**
+     * Returns the global options manager.
+     *
+     * @return GlobalOptionsManager
+     */
+    public function getGlobalOptionsManager(): GlobalOptionsManager
+    {
+        return $this->globalOptions;
+    }
+
+    /**
+     * Sets the global options manager.
+     *
+     * @param GlobalOptionsManager $globalOptions
+     * @return self
+     */
+    public function setGlobalOptionsManager(GlobalOptionsManager $globalOptions): self
+    {
+        $this->globalOptions = $globalOptions;
+        return $this;
+    }
+
+    /**
+     * Convenience proxy returning the default input definition for global options.
+     *
+     * @return InputDefinition
+     */
+    public function getDefaultInputDefinition(): InputDefinition
+    {
+        return $this->globalOptions->getDefaultDefinition();
+    }
+
+    /**
+     * Handles the full execution lifecycle for a console request.
+     *
+     * Resolves the command, merges global options, handles system parameters,
+     * processes the middleware pipeline, and returns the resulting exit code.
      *
      * @param InputInterface $input  The parsed console input.
      * @param Output         $output The output handler.
@@ -154,25 +240,16 @@ class Kernel
      */
     public function handle(InputInterface $input, Output $output): int
     {
-        $core = fn(): int => $this->executeCommand($input, $output);
-
-        $pipeline = array_reverse($this->pipes);
-        $next = $core;
-
-        foreach ($pipeline as $pipeClass) {
-            $prev = $next;
-            $next = function () use ($pipeClass, $input, $output, $prev): int {
-                $pipe = $this->container->make($pipeClass);
-                return $pipe->handle($input, $output, $prev);
-            };
-        }
-
         try {
-            return $next();
+            return $this->executeCommand($input, $output);
         } catch (CommandNotFoundException $e) {
             $output->error('  ' . $e->getMessage());
             $output->newLine();
             $output->line('  Run ' . $output->format('php farmer list', 'yellow') . ' to see available commands.');
+            $output->newLine();
+            return 1;
+        } catch (\LogicException $e) {
+            $output->error('  ' . $e->getMessage());
             $output->newLine();
             return 1;
         } catch (\Exception $e) {
@@ -183,32 +260,86 @@ class Kernel
     }
 
     /**
-     * Executes a specific command with resolved definition and dependencies.
-     *
-     * Resolves the command by name, binds its input definition, validates input,
-     * and invokes the command's handle method via the container.
+     * Executes a specific command with resolved definition, global options, and dependencies.
      *
      * @param InputInterface $input  The parsed console input.
      * @param Output         $output The output handler.
-     * @return int The exit code returned by the command.
+     * @return int The exit code returned by the command or early-exit handler.
      */
     protected function executeCommand(InputInterface $input, Output $output): int
     {
-        $commandName = $input->getCommandName();
+        // 1. Définition de la commande ciblée ('list' par défaut)
+        $commandName = $input->getCommandName() ?? 'list';
 
-        if ($commandName === null) {
-            throw new CommandNotFoundException('Aucune commande spécifiée.');
+        // 2. Résolution de la commande
+        $command = $this->resolve($commandName);
+
+        // 3. Construction de la définition combinée avec protection anti-surcharge via GlobalOptionsManager
+        $definition = $this->globalOptions->buildDefinitionFor($command);
+
+        // 4. Liaison de l'input et injection IO
+        $input->bindDefinition($definition);
+        $command->setIO($input, $output);
+        $command->setDefinition($definition);
+
+        // 5. Bloc dédié délégué à GlobalOptionsManager (early-exit sur --help ou --version, ou configuration)
+        $earlyExit = $this->globalOptions->handle($input, $output, $command);
+        if ($earlyExit !== null) {
+            return $earlyExit;
         }
 
-        // 1. Résolution
-        $command = $this->resolve($commandName);
-        $definition = $command->getResolvedInputDefinition();
-
-        $input->bindDefinition($definition);
+        // 6. Validation de l'input pour l'exécution réelle
         $input->validate();
-        $command->setIO($input, $output);
 
-        $result = $this->container->call([$command, 'handle'], ['input' => $input, 'output' => $output]);
+        // 7. Exécution via le pipeline de middlewares éventuel ou directement
+        return $this->runPipeline($command, $input, $output);
+    }
+
+    /**
+     * Executes the command within the registered middleware pipeline.
+     *
+     * @param Command        $command The resolved command.
+     * @param InputInterface $input   The bound input.
+     * @param Output         $output  The output handler.
+     * @return int
+     */
+    protected function runPipeline(Command $command, InputInterface $input, Output $output): int
+    {
+        $pipes = array_merge($this->pipes, $command->getPipes());
+        $core = fn(): int => $this->callCommandHandler($command, $input, $output);
+
+        if (empty($pipes)) {
+            return $core();
+        }
+
+        $pipeline = array_reverse($pipes);
+        $next = $core;
+
+        foreach ($pipeline as $pipeClass) {
+            $prev = $next;
+            $next = function () use ($pipeClass, $input, $output, $prev): int {
+                $pipe = $this->container->make($pipeClass);
+                return $pipe->handle($input, $output, $prev);
+            };
+        }
+
+        return $next();
+    }
+
+    /**
+     * Invokes the command handler through the container.
+     *
+     * @param Command        $command The resolved command.
+     * @param InputInterface $input   The bound input.
+     * @param Output         $output  The output handler.
+     * @return int
+     */
+    protected function callCommandHandler(Command $command, InputInterface $input, Output $output): int
+    {
+        $result = $this->container->call([$command, 'handle'], [
+            'input' => $input,
+            'output' => $output,
+        ]);
 
         return is_int($result) ? $result : 0;
     }

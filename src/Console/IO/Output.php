@@ -14,10 +14,22 @@ class Output
     private const WHITE  = "\033[37m";
 
     private bool $ansi;
+    private bool $quiet = false;
 
     public function __construct(bool $ansi = true)
     {
         $this->ansi = $ansi && $this->supportsAnsi();
+    }
+
+    public function setQuiet(bool $quiet): self
+    {
+        $this->quiet = $quiet;
+        return $this;
+    }
+
+    public function isQuiet(): bool
+    {
+        return $this->quiet;
     }
 
     private function supportsAnsi(): bool
@@ -51,6 +63,10 @@ class Output
 
     public function line(string $message = ''): void
     {
+        if ($this->quiet) {
+            return;
+        }
+
         echo $message . PHP_EOL;
     }
 
@@ -76,11 +92,19 @@ class Output
 
     public function newLine(int $count = 1): void
     {
+        if ($this->quiet) {
+            return;
+        }
+
         echo str_repeat(PHP_EOL, $count);
     }
 
     public function table(array $headers, array $rows): void
     {
+        if ($this->quiet) {
+            return;
+        }
+
         $widths = array_map('strlen', $headers);
 
         foreach ($rows as $row) {

@@ -3,7 +3,6 @@
 namespace Potager\Console\Commands;
 
 use Potager\Console\Command;
-use Potager\Console\IO\InputOption;
 use Potager\Facades\Farmer;
 
 class CommandListCommand extends Command
@@ -11,13 +10,6 @@ class CommandListCommand extends Command
     protected string $name = 'list';
 
     protected string $description = 'List all registered commands';
-
-    protected function getInputDefinition(): array
-    {
-        return [
-            InputOption::make('help')->description('Display this help message')->shortcut('h'),
-        ];
-    }
 
     public function handle(): int
     {

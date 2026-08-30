@@ -72,6 +72,18 @@ class InputArgument
     }
 
     /**
+     * Marks the argument as required (or optional).
+     *
+     * @param bool $required Whether the argument is required. Defaults to true.
+     * @return self
+     */
+    public function required(bool $required = true): self
+    {
+        $this->required = $required;
+        return $this;
+    }
+
+    /**
      * Marks the argument as optional (or required).
      *
      * @param bool $optional Whether the argument is optional. Defaults to true.

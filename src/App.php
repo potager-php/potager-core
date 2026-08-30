@@ -24,9 +24,18 @@ use Throwable;
  *
  * The main application bootstrap class. It acts as a central point to manage services,
  * configurations, and commonly used components via dependency injection.
+ *
+ * @mixin Container
  */
 class App
 {
+    /**
+     * The Potager framework version.
+     *
+     * @var string
+     */
+    public const VERSION = '0.0.0';
+
     /**
      * Singleton instance of the App.
      *
@@ -51,8 +60,8 @@ class App
     /**
      * App constructor.
      *
-     * Initializes the application, including the configuration, service container,
-     * and MySQL database connection.
+     * Initializes the application instance, service container, base path,
+     * configuration repository, service bindings, and error handlers.
      *
      * @param string|null $basePath The base path of the project.
      * @throws \Exception If the container is required but not provided.
@@ -69,12 +78,24 @@ class App
         $this->registerHandlers();
     }
 
+    /**
+     * Create a new application instance.
+     *
+     * @param string|null $basePath The base path of the project.
+     * @return static
+     */
     public static function create(?string $basePath = null): static
     {
         return new static($basePath);
     }
 
-    public function withCommands(?string $commandsPath = null): static
+    /**
+     * Bootstrap the console kernel and load command files from the specified directory.
+     *
+     * @param string|null $commandsPath Optional custom directory path containing command definitions.
+     * @return self
+     */
+    public function withCommands(?string $commandsPath = null): self
     {
         /** @var Kernel $kernel */
         $kernel = $this->container->make(Kernel::class);
@@ -91,16 +112,12 @@ class App
         return $this;
     }
 
-    public function handleCommand(?ArgvInput $input = null): int
-    {
-        $input ??= new ArgvInput();
-        $output = new Output();
-
-        /** @var Kernel $kernel */
-        $kernel = $this->container->make(Kernel::class);
-        return $kernel->handle($input, $output);
-    }
-
+    /**
+     * Register route files from the specified routes directory.
+     *
+     * @param string $routesPath The relative or absolute path to the routes directory.
+     * @return self
+     */
     public function withRouting(string $routesPath = '/routes'): self
     {
         $fullRoutesPath = path($routesPath);
@@ -115,14 +132,25 @@ class App
         return $this;
     }
 
+    /**
+     * Configure application services using a custom callback.
+     *
+     * @param callable(Container, self): void $callback Callback receiving the container and application instance.
+     * @return self
+     */
     public function withServices(callable $callback): self
     {
-        // On passe le conteneur (ou l'app) à la fonction anonyme du développeur
+        // Pass the container and application instance to the developer's callback
         $callback($this->container, $this);
 
         return $this;
     }
 
+    /**
+     * Infer the application base path from environment variables or registered Composer autoloader.
+     *
+     * @return string
+     */
     public static function inferBasePath(): string
     {
         return match (true) {
@@ -139,17 +167,17 @@ class App
      * Set the base path for the application.
      * If no path is provided, the application will attempt to infer it.
      *
-     * @param string|null $basePath
-     * @return static
+     * @param string|null $basePath The base path of the project.
+     * @return self
      */
-    public function setBasePath(?string $basePath = null): static
+    public function setBasePath(?string $basePath = null): self
     {
-        // 1. Définition et formatage du chemin
+        // 1. Define and format path
         $this->basePath = $basePath
             ? rtrim($basePath, '\/')
             : static::inferBasePath();
 
-        // 2. Synchronisation avec le Container (si celui-ci est déjà initialisé)
+        // 2. Synchronize with the Container (if already initialized)
         if ($this->container) {
             $this->container->instance('path.base', $this->basePath);
         }
@@ -251,11 +279,32 @@ class App
         return static::$instance;
     }
 
+    /**
+     * Handle an incoming HTTP request via the router.
+     *
+     * @return void
+     */
     public function handleRequest(): void
     {
         /** @var Router $router */
         $router = $this->container->make(Router::class);
         $router->handleRequest();
+    }
+
+    /**
+     * Handle a CLI command execution through the console kernel.
+     *
+     * @param ArgvInput|null $input The input instance, or null to create from argv.
+     * @return int The exit status code.
+     */
+    public function handleCommand(?ArgvInput $input = null): int
+    {
+        $input ??= new ArgvInput();
+        $output = new Output();
+
+        /** @var Kernel $kernel */
+        $kernel = $this->container->make(Kernel::class);
+        return $kernel->handle($input, $output);
     }
 
     /**
@@ -296,6 +345,65 @@ class App
     public static function useConfig(): RepositoryInterface
     {
         return static::getInstance()->getConfig();
+    }
+
+    /**
+     * Get the resolved version of the application or framework.
+     *
+     * Resolves in cascade:
+     * 1. config('app.version') (e.g. from .env APP_VERSION)
+     * 2. Composer InstalledVersions metadata
+     * 3. Static VERSION constant fallback
+     *
+     * @return string
+     */
+    public static function version(): string
+    {
+        if (static::$instance && static::$instance->container?->has(RepositoryInterface::class)) {
+            try {
+                $configVersion = static::useConfig()->get('app.version');
+                if (!empty($configVersion)) {
+                    return (string) $configVersion;
+                }
+            } catch (\Throwable) {
+                // Fallback if config is unavailable
+            }
+        }
+
+        if (class_exists(\Composer\InstalledVersions::class)) {
+            try {
+                $installed = \Composer\InstalledVersions::getPrettyVersion('potager/potager-core');
+                if ($installed !== null) {
+                    return $installed;
+                }
+            } catch (\OutOfBoundsException) {
+                // Not installed as distinct composer package
+            }
+        }
+
+        return static::VERSION;
+    }
+
+    /**
+     * Get the application name (from config('app.name') or fallback).
+     *
+     * @param string $default
+     * @return string
+     */
+    public static function name(string $default = 'Potager Framework'): string
+    {
+        if (static::$instance && static::$instance->container?->has(RepositoryInterface::class)) {
+            try {
+                $name = static::useConfig()->get('app.name');
+                if (!empty($name)) {
+                    return (string) $name;
+                }
+            } catch (\Throwable) {
+                // Fallback if config is unavailable
+            }
+        }
+
+        return $default;
     }
 
     /**
@@ -364,6 +472,14 @@ class App
         return $container->make(Authenticator::class);
     }
 
+    /**
+     * Dynamically delegate method calls to the service container.
+     *
+     * @param string $method Method name called.
+     * @param array<int|string, mixed> $args Arguments passed to the method.
+     * @return mixed The result of the method call on the container.
+     * @throws \BadMethodCallException If the method does not exist on the Container.
+     */
     public function __call(string $method, array $args): mixed
     {
         $container = $this->getContainer();
@@ -375,13 +491,14 @@ class App
     }
 
     /**
-     * Magic static method handler for dynamic useXyz service accessors.
+     * Magic static method handler for dynamic useXyz service accessors and container delegation.
      *
-     * Allows static calls like App::useCustomService() to resolve services from the container.
+     * Allows static calls like App::useCustomService() to resolve services from the container,
+     * or delegates static calls to the container instance.
      *
      * @param string $method Method name called.
-     * @param array $args Arguments passed to the method.
-     * @return mixed The resolved service instance.
+     * @param array<int|string, mixed> $args Arguments passed to the method.
+     * @return mixed The resolved service instance or method call result.
      * @throws \BadMethodCallException If service or method is undefined.
      */
     public static function __callStatic($method, $args): mixed
