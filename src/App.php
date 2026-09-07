@@ -11,7 +11,7 @@ use Potager\Container\Container;
 use Potager\Contracts\Configuration\RepositoryInterface;
 use Potager\Exceptions\Handler;
 use Potager\Console\Kernel;
-use Potager\Limpid\Database;
+use Potager\Database\Database;
 use Potager\Limpid\Model;
 use Potager\Mailer\MailManager;
 use Potager\Router\Request;
@@ -220,6 +220,11 @@ class App
 
         $this->container->singletonIfNotExists(Database::class, function (): Database {
             $config = $this->getConfig()->get('database');
+            if (!is_array($config)) {
+                throw new \RuntimeException(
+                    "Database configuration not found. Please ensure [config/database.php] exists and returns an array."
+                );
+            }
             return new Database($config);
         });
 

@@ -17,18 +17,11 @@
             "src/Helpers/view.php"
         ]
     },
-    "repositories": [
-        {
-            "type": "git",
-            "url": "https://github.com/theo-vdml/pixie-potager.git"
-        }
-    ],
     "require": {
         "php": ">=8.1",
         "ext-pdo": "*",
         "latte/latte": "^3.0",
         "vlucas/phpdotenv": "^5.6",
-        "potager/pixie": "dev-master",
         "scrivo/highlight.php": "^9.18",
         "theovdml/doh": "^1.0",
         "willdurand/negotiation": "^3.1",

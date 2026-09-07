@@ -3,11 +3,12 @@
 namespace Potager\Limpid;
 
 use PDOStatement;
+use Potager\Database\Database;
 use Potager\Limpid\Boot\ModelBooter;
 use Potager\Limpid\Definitions\ColumnDefinition;
 use Potager\Limpid\Definitions\ComputedDefinition;
 use Potager\Limpid\Definitions\ModelDefinition;
-use Pixie\QueryBuilder\QueryBuilderHandler;
+use Potager\Sillon\QueryBuilder\QueryBuilderHandler;
 use Potager\Limpid\Exceptions\MissingComputedResolverException;
 use Potager\Support\Utils;
 use InvalidArgumentException;
@@ -872,7 +873,7 @@ abstract class Model
     {
         // return Database::table(static::getDefinition()->getTable());
         $table = static::getDefinition()->getTable();
-        return static::getDatabase()->getTableQuery($table);
+        return static::getDatabase()->table($table);
     }
 
     /*

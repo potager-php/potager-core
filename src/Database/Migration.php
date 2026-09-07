@@ -1,6 +1,6 @@
 <?php
 
-namespace Potager\Limpid;
+namespace Potager\Database;
 
 abstract class Migration
 {

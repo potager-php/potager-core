@@ -4,7 +4,7 @@ namespace Tests\Support;
 
 use PDO;
 use Tests\TestCase;
-use Potager\Limpid\Database;
+use Potager\Database\Database;
 use Potager\Limpid\Model;
 
 /**

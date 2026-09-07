@@ -41,8 +41,10 @@ abstract class TestCase extends BaseTestCase
         if (property_exists($this, 'app')) {
             $this->app = null;
 
-            restore_error_handler();
-            restore_exception_handler();
+            if (php_sapi_name() !== 'cli') {
+                restore_error_handler();
+                restore_exception_handler();
+            }
         }
 
         parent::tearDown();
