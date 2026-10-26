@@ -26,10 +26,24 @@ abstract class Migration
     }
 
     /**
+     * Schema Builder instance.
+     */
+    protected ?SchemaBuilder $schema = null;
+
+    /**
+     * Set the Schema Builder instance.
+     */
+    public function setSchema(SchemaBuilder $schema): static
+    {
+        $this->schema = $schema;
+        return $this;
+    }
+
+    /**
      * Access the Schema Builder instance.
      */
     protected function schema(): SchemaBuilder
     {
-        return App::make(SchemaBuilder::class);
+        return $this->schema ?? App::make(SchemaBuilder::class);
     }
 }

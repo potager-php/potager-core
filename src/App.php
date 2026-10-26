@@ -12,6 +12,7 @@ use Potager\Contracts\Configuration\RepositoryInterface;
 use Potager\Exceptions\Handler;
 use Potager\Console\Kernel;
 use Potager\Database\Database;
+use Potager\Database\Migrator;
 use Potager\Limpid\Model;
 use Potager\Mailer\MailManager;
 use Potager\Router\Request;
@@ -231,6 +232,10 @@ class App
 
         $this->container->singletonIfNotExists(SchemaBuilder::class, function (): SchemaBuilder {
             return $this->container->make(Database::class)->getSchemaBuilder();
+        });
+
+        $this->container->singletonIfNotExists(Migrator::class, function (): Migrator {
+            return new Migrator($this->container->make(Database::class));
         });
 
         $this->container->singletonIfNotExists(Authenticator::class, function (): Authenticator {
@@ -469,6 +474,17 @@ class App
     {
         $container = static::getInstance()->getContainer();
         return $container->make(Database::class);
+    }
+
+    /**
+     * Static accessor for the Migrator instance.
+     *
+     * @return Migrator
+     */
+    public static function useMigrator(): Migrator
+    {
+        $container = static::getInstance()->getContainer();
+        return $container->make(Migrator::class);
     }
 
     /**

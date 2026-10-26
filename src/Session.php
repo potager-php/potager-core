@@ -73,7 +73,7 @@ class Session
                 'domain' => ''
             ]);
 
-            session_start();
+            @session_start();
         }
 
         $this->rotateFlash();

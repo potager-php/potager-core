@@ -1,0 +1,28 @@
+<?php
+
+use Potager\Database\Migration;
+use Potager\Facades\Schema;
+use Potager\Sillon\Schema\Blueprint;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('{{table}}', function (Blueprint $table) {
+            //
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('{{table}}', function (Blueprint $table) {
+            //
+        });
+    }
+};

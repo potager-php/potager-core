@@ -3,12 +3,17 @@
 namespace Potager\Console;
 
 use Potager\Console\Commands\CommandListCommand;
+use Potager\Console\Commands\FreshCommand;
 use Potager\Console\Commands\MakeCommandCommand;
 use Potager\Console\Commands\MakeControllerCommand;
 use Potager\Console\Commands\MakeMiddlewareCommand;
+use Potager\Console\Commands\MakeMigrationCommand;
 use Potager\Console\Commands\MakeModelCommand;
 use Potager\Console\Commands\MakePipeCommand;
+use Potager\Console\Commands\MigrateCommand;
+use Potager\Console\Commands\RollbackCommand;
 use Potager\Console\Commands\RouteListCommand;
+use Potager\Console\Commands\WipeCommand;
 use Potager\Console\Exceptions\CommandNotFoundException;
 use Potager\Console\IO\InputDefinition;
 use Potager\Console\IO\Output;
@@ -64,9 +69,14 @@ class Kernel
             MakeCommandCommand::class,
             MakeControllerCommand::class,
             MakeMiddlewareCommand::class,
+            MakeMigrationCommand::class,
             MakeModelCommand::class,
             MakePipeCommand::class,
             RouteListCommand::class,
+            MigrateCommand::class,
+            RollbackCommand::class,
+            FreshCommand::class,
+            WipeCommand::class,
         ];
 
         foreach ($builtinCommands as $commandClass) {
