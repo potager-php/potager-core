@@ -6,6 +6,7 @@ use PDO;
 use Potager\Sillon\Connection;
 use Potager\Sillon\QueryBuilder\QueryBuilderHandler;
 use Potager\Sillon\QueryBuilder\Raw;
+use Potager\Sillon\Schema\SchemaBuilder;
 use RuntimeException;
 
 /**
@@ -40,7 +41,7 @@ class Database
         $connectionConfig = $this->buildConnectionConfig($config);
 
         try {
-            $this->connection = new Connection($connectionConfig['driver'], $connectionConfig);
+            $this->connection = Connection::create($connectionConfig['driver'], $connectionConfig);
             $this->pdo = $this->connection->getPdoInstance();
         } catch (\Exception $e) {
             throw new RuntimeException("Database connection failed: " . $e->getMessage(), 0, $e);
@@ -110,6 +111,26 @@ class Database
     public function table(string $table): QueryBuilderHandler
     {
         return $this->query()->table($table);
+    }
+
+    /**
+     * Returns an instance of the Schema Builder.
+     *
+     * @return SchemaBuilder
+     */
+    public function getSchemaBuilder(): SchemaBuilder
+    {
+        return $this->connection->getSchemaBuilder();
+    }
+
+    /**
+     * Shortcut to get the Schema Builder.
+     *
+     * @return SchemaBuilder
+     */
+    public function schema(): SchemaBuilder
+    {
+        return $this->getSchemaBuilder();
     }
 
     /**

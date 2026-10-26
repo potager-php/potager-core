@@ -72,8 +72,7 @@ class QueryBuilderHandler
         }
 
         // Query builder adapter instance
-        $adapterClass = Connection::resolveQueryAdapter($this->adapter);
-        $this->adapterInstance = new $adapterClass($this->connection);
+        $this->adapterInstance = $this->connection->getQueryAdapter();
 
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }

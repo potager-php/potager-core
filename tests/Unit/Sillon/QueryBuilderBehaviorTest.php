@@ -10,7 +10,7 @@ beforeEach(function () {
         'prefix' => 'cb_',
     ];
 
-    $connection = new Connection('sqlite', $config);
+    $connection = Connection::create('sqlite', $config);
     $this->connection = $connection;
     $this->builder = $connection->getQueryBuilder();
 

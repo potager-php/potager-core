@@ -1,4 +1,6 @@
-<?php namespace Potager\Sillon\QueryBuilder\Adapters;
+<?php
+
+namespace Potager\Sillon\QueryBuilder\Adapters;
 
 class Pgsql extends BaseAdapter
 {

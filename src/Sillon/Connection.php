@@ -2,76 +2,113 @@
 
 namespace Potager\Sillon;
 
+use PDO;
+use Potager\Sillon\QueryBuilder\Adapters\BaseAdapter as BaseQueryAdapter;
 use Potager\Sillon\QueryBuilder\QueryBuilderHandler;
+use Potager\Sillon\Schema\Adapters\BaseAdapter as BaseSchemaAdapter;
+use Potager\Sillon\Schema\SchemaBuilder;
 
-class Connection
+abstract class Connection
 {
-    /**
-     * @var string
-     */
-    protected $adapter;
-
     /**
      * @var array
      */
-    protected $adapterConfig;
+    protected array $adapterConfig = [];
 
     /**
-     * @var \PDO
+     * @var PDO
      */
-    protected $pdoInstance;
+    protected PDO $pdoInstance;
 
     /**
      * @var EventHandler
      */
-    protected $eventHandler;
+    protected EventHandler $eventHandler;
 
     /**
-     * Driver mapping for connection and query builder adapters.
+     * Connection constructor.
      *
-     * @var array<string, array{connection: class-string, query: class-string}>
+     * @param array $adapterConfig
      */
-    protected static array $adapterMap = [
-        'mysql'      => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Mysql::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Mysql::class,
-        ],
-        'pgsql'      => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Pgsql::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Pgsql::class,
-        ],
-        'postgres'   => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Pgsql::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Pgsql::class,
-        ],
-        'postgresql' => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Pgsql::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Pgsql::class,
-        ],
-        'sqlite'     => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Sqlite::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Sqlite::class,
-        ],
-        'sqlite3'    => [
-            'connection' => \Potager\Sillon\ConnectionAdapters\Sqlite::class,
-            'query'      => \Potager\Sillon\QueryBuilder\Adapters\Sqlite::class,
-        ],
-    ];
-
-    /**
-     * @param string $adapter
-     * @param array  $adapterConfig
-     */
-    public function __construct(string $adapter, array $adapterConfig)
+    public function __construct(array $adapterConfig)
     {
-        $this->setAdapter($adapter)->setAdapterConfig($adapterConfig)->connect();
-
-        // Create event dependency
+        $this->adapterConfig = $adapterConfig;
+        $this->pdoInstance = $this->createPdo($adapterConfig);
         $this->eventHandler = new EventHandler();
     }
 
     /**
-     * Returns an instance of Query Builder
+     * Create the underlying PDO instance.
+     *
+     * @param array $config
+     * @return PDO
+     */
+    abstract protected function createPdo(array $config): PDO;
+
+    /**
+     * Get the driver name (e.g. 'sqlite', 'mysql', 'pgsql').
+     */
+    abstract public function getDriver(): string;
+
+    /**
+     * Returns the Query Builder adapter instance for this connection.
+     */
+    abstract public function getQueryAdapter(): BaseQueryAdapter;
+
+    /**
+     * Returns the Schema Builder adapter instance for this connection.
+     */
+    abstract public function getSchemaAdapter(): BaseSchemaAdapter;
+
+    /**
+     * Factory to create the proper Connection subclass.
+     *
+     * @param string $driver
+     * @param array $config
+     * @return Connection
+     */
+    public static function create(string $driver, array $config): Connection
+    {
+        return ConnectionFactory::create($driver, $config);
+    }
+
+    /**
+     * Alias of create().
+     *
+     * @param string $driver
+     * @param array $config
+     * @return Connection
+     */
+    public static function make(string $driver, array $config): Connection
+    {
+        return ConnectionFactory::create($driver, $config);
+    }
+
+    /**
+     * Registers a custom connection class or resolver for a driver.
+     *
+     * @param string $driver
+     * @param \Closure|class-string<Connection> $resolver
+     */
+    public static function registerDriver(string $driver, \Closure|string $resolver): void
+    {
+        ConnectionFactory::register($driver, $resolver);
+    }
+
+    /**
+     * Resolves the connection class for a driver.
+     *
+     * @param string $driver
+     * @return class-string<Connection>
+     * @throws Exception
+     */
+    public static function resolveConnection(string $driver): string
+    {
+        return ConnectionFactory::resolveConnectionClass($driver);
+    }
+
+    /**
+     * Returns an instance of Query Builder.
      */
     public function getQueryBuilder(): QueryBuilderHandler
     {
@@ -79,122 +116,44 @@ class Connection
     }
 
     /**
-     * Registers a custom adapter or driver mapping.
-     *
-     * @param string $driver
-     * @param class-string $connectionAdapter
-     * @param class-string $queryAdapter
+     * Returns an instance of Schema Builder.
      */
-    public static function registerAdapter(string $driver, string $connectionAdapter, string $queryAdapter): void
+    public function getSchemaBuilder(): SchemaBuilder
     {
-        static::$adapterMap[strtolower($driver)] = [
-            'connection' => $connectionAdapter,
-            'query'      => $queryAdapter,
-        ];
+        return new SchemaBuilder($this);
     }
 
     /**
-     * Resolves the connection adapter class for a given driver.
-     *
-     * @param string $driver
-     * @return class-string<\Potager\Sillon\ConnectionAdapters\BaseAdapter>
-     * @throws Exception If adapter is unsupported.
+     * Alias for getDriver() for backwards compatibility.
      */
-    public static function resolveConnectionAdapter(string $driver): string
+    public function getAdapter(): string
     {
-        $key = strtolower($driver);
-        if (isset(static::$adapterMap[$key])) {
-            return static::$adapterMap[$key]['connection'];
-        }
-
-        $fallback = '\\Potager\\Sillon\\ConnectionAdapters\\' . ucfirst($key);
-        if (class_exists($fallback)) {
-            return $fallback;
-        }
-
-        throw new Exception("Unsupported database driver: [{$driver}].");
+        return $this->getDriver();
     }
 
     /**
-     * Resolves the query builder adapter class for a given driver.
-     *
-     * @param string $driver
-     * @return class-string<\Potager\Sillon\QueryBuilder\Adapters\BaseAdapter>
-     * @throws Exception If adapter is unsupported.
+     * @param PDO $pdo
+     * @return self
      */
-    public static function resolveQueryAdapter(string $driver): string
-    {
-        $key = strtolower($driver);
-        if (isset(static::$adapterMap[$key])) {
-            return static::$adapterMap[$key]['query'];
-        }
-
-        $fallback = '\\Potager\\Sillon\\QueryBuilder\\Adapters\\' . ucfirst($driver);
-        if (class_exists($fallback)) {
-            return $fallback;
-        }
-
-        throw new Exception("Unsupported query builder adapter for driver: [{$driver}].");
-    }
-
-    /**
-     * Create the connection adapter
-     */
-    protected function connect()
-    {
-        $adapterClass = static::resolveConnectionAdapter($this->adapter);
-
-        /** @var \Potager\Sillon\ConnectionAdapters\BaseAdapter $adapterInstance */
-        $adapterInstance = new $adapterClass();
-        $pdo = $adapterInstance->connect($this->adapterConfig);
-
-        $this->setPdoInstance($pdo);
-    }
-
-    /**
-     * @param \PDO $pdo
-     *
-     * @return $this
-     */
-    public function setPdoInstance(\PDO $pdo)
+    public function setPdoInstance(PDO $pdo): self
     {
         $this->pdoInstance = $pdo;
         return $this;
     }
 
     /**
-     * @return \PDO
+     * @return PDO
      */
-    public function getPdoInstance()
+    public function getPdoInstance(): PDO
     {
         return $this->pdoInstance;
     }
 
     /**
-     * @param $adapter
-     *
-     * @return $this
-     */
-    public function setAdapter($adapter)
-    {
-        $this->adapter = $adapter;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getAdapter()
-    {
-        return $this->adapter;
-    }
-
-    /**
      * @param array $adapterConfig
-     *
-     * @return $this
+     * @return self
      */
-    public function setAdapterConfig(array $adapterConfig)
+    public function setAdapterConfig(array $adapterConfig): self
     {
         $this->adapterConfig = $adapterConfig;
         return $this;
@@ -211,7 +170,7 @@ class Connection
     /**
      * @return EventHandler
      */
-    public function getEventHandler()
+    public function getEventHandler(): EventHandler
     {
         return $this->eventHandler;
     }

@@ -17,6 +17,7 @@ use Potager\Mailer\MailManager;
 use Potager\Router\Request;
 use Potager\Router\RequestFactory;
 use Potager\Router\Router;
+use Potager\Sillon\Schema\SchemaBuilder;
 use Throwable;
 
 /**
@@ -226,6 +227,10 @@ class App
                 );
             }
             return new Database($config);
+        });
+
+        $this->container->singletonIfNotExists(SchemaBuilder::class, function (): SchemaBuilder {
+            return $this->container->make(Database::class)->getSchemaBuilder();
         });
 
         $this->container->singletonIfNotExists(Authenticator::class, function (): Authenticator {

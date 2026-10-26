@@ -11,7 +11,7 @@ beforeEach(function () {
         'prefix' => 'cb_',
     ];
 
-    $connection = new Connection('sqlite', $config);
+    $connection = Connection::create('sqlite', $config);
     $this->builder = $connection->getQueryBuilder();
 
     $pdo = $connection->getPdoInstance();
@@ -102,15 +102,12 @@ it('supports manual rollback in transaction without rethrowing', function () {
 });
 
 it('resolves driver aliases correctly in Connection', function () {
-    expect(Connection::resolveConnectionAdapter('postgres'))->toBe(\Potager\Sillon\ConnectionAdapters\Pgsql::class)
-        ->and(Connection::resolveConnectionAdapter('postgresql'))->toBe(\Potager\Sillon\ConnectionAdapters\Pgsql::class)
-        ->and(Connection::resolveQueryAdapter('postgres'))->toBe(\Potager\Sillon\QueryBuilder\Adapters\Pgsql::class)
-        ->and(Connection::resolveQueryAdapter('postgresql'))->toBe(\Potager\Sillon\QueryBuilder\Adapters\Pgsql::class)
-        ->and(Connection::resolveConnectionAdapter('sqlite3'))->toBe(\Potager\Sillon\ConnectionAdapters\Sqlite::class)
-        ->and(Connection::resolveQueryAdapter('sqlite3'))->toBe(\Potager\Sillon\QueryBuilder\Adapters\Sqlite::class);
+    expect(Connection::resolveConnection('postgres'))->toBe(\Potager\Sillon\Connections\PgsqlConnection::class)
+        ->and(Connection::resolveConnection('postgresql'))->toBe(\Potager\Sillon\Connections\PgsqlConnection::class)
+        ->and(Connection::resolveConnection('sqlite3'))->toBe(\Potager\Sillon\Connections\SqliteConnection::class);
 });
 
 it('throws exception when unsupported driver is requested', function () {
-    Connection::resolveConnectionAdapter('unknown_driver');
+    Connection::resolveConnection('unknown_driver');
 })->throws(Exception::class, 'Unsupported database driver: [unknown_driver].');
 
