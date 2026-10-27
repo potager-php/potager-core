@@ -906,7 +906,8 @@ abstract class Model
         // If the key corresponds to a defined column,
         // return the stored attribute value or null if not set.
         if (static::_hasColumn($key)) {
-            return $this->_attributes[$key] ?? null;
+            $column = static::_getColumn($key);
+            return $this->_attributes[$column] ?? null;
         }
 
         // Otherwise, return the value from extras if present, or null.
