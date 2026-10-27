@@ -459,6 +459,7 @@ abstract class Model
                 $this->setAttribute($column->property, $value);
                 continue;
             }
+            $this->_extras[$key] = $value;
         }
     }
 
